@@ -1,95 +1,65 @@
-function normalizeTests(tests_raw) {
-  const REF_RANGES = {
-    Hemoglobin: { unit: "g/dL", low: 13.0, high: 17.0 },
-    RBC: { unit: "mill/cumm", low: 4.5, high: 5.5 },
-    PCV: { unit: "%", low: 40, high: 50 },
-    WBC: { unit: "/cumm", low: 4000, high: 11000 },
-    Platelet: { unit: "/cumm", low: 150000, high: 410000 },
-    Neutrophils: { unit: "%", low: 50, high: 62 },
-    Lymphocytes: { unit: "%", low: 20, high: 40 },
-    Eosinophils: { unit: "%", low: 0, high: 6 },
-    Monocytes: { unit: "%", low: 0, high: 10 },
-    Basophils: { unit: "%", low: 0, high: 2 }
-  };
+import { REF_RANGES } from "../utils/refRanges.js";
 
-  function cleanValue(name, value) {
-    if (name === "Hemoglobin" && value > 100) return value / 10;
-    if (name === "RBC" && value > 10) return value / 10;
-    return value;
+// conservative numeric cleanups for common OCR slips
+function cleanValue(name, value) {
+  if (name === "Hemoglobin") {
+    if (value > 100) return value / 10; // 125 -> 12.5
+    if (value < 5)   return value * 10; // 1.25 -> 12.5
   }
+  if (name === "RBC" && value > 10) return value / 10; // 52 -> 5.2
+  return value;
+}
 
+function canonicalName(raw) {
+  const s = raw.toLowerCase();
+  if (s.includes("hemoglobin") || s.includes("hb")) return "Hemoglobin";
+  if (s.includes("wbc") || s.includes("total wbc")) return "WBC";
+  if (s.includes("platelet")) return "Platelet";
+  if (s.includes("pcv") || s.includes("packed cell volume")) return "PCV";
+  if (s.includes("rbc") || s.includes("rec")) return "RBC";
+  if (s.includes("neutro")) return "Neutrophils";
+  if (s.includes("lympho")) return "Lymphocytes";
+  if (s.includes("eosino")) return "Eosinophils";
+  if (s.includes("mono")) return "Monocytes";
+  if (s.includes("baso")) return "Basophils";
+  return null;
+}
+
+export function normalizeTests(tests_raw) {
   const results = [];
+  const provenance = []; // to enforce guardrail later
 
-  for (let raw of tests_raw) {
-    let name = null, value = null, unit = null, status = null;
+  for (let seg of tests_raw) {
+    const nameCand = canonicalName(seg);
+    if (!nameCand || !REF_RANGES[nameCand]) continue;
 
-    if (/hemoglobin/i.test(raw)) {
-      name = "Hemoglobin";
-      value = parseFloat(raw.match(/[\d.]+/)[0]);
-      value = cleanValue(name, value);
-      unit = REF_RANGES[name].unit;
-    } else if (/rbc|rec/i.test(raw)) {
-      name = "RBC";
-      value = parseFloat(raw.match(/[\d.]+/)[0]);
-      value = cleanValue(name, value);
-      unit = REF_RANGES[name].unit;
-    } else if (/pcv|packed cell volume/i.test(raw)) {
-      name = "PCV";
-      value = parseFloat(raw.match(/[\d.]+/)[0]);
-      unit = REF_RANGES[name].unit;
-    } else if (/wbc/i.test(raw)) {
-      name = "WBC";
-      value = parseFloat(raw.match(/[\d.]+/)[0]);
-      unit = REF_RANGES[name].unit;
-    } else if (/platelet/i.test(raw)) {
-      name = "Platelet";
-      value = parseInt(raw.match(/\d+/)[0]);
-      unit = REF_RANGES[name].unit;
-      if (/borderline/i.test(raw)) status = "borderline";
-    } else if (/neutrophil/i.test(raw)) {
-      name = "Neutrophils";
-      value = parseFloat(raw.match(/[\d.]+/)[0]);
-      unit = REF_RANGES[name].unit;
-    } else if (/lymphocyte/i.test(raw)) {
-      name = "Lymphocytes";
-      value = parseFloat(raw.match(/[\d.]+/)[0]);
-      unit = REF_RANGES[name].unit;
-    } else if (/eosinophil/i.test(raw)) {
-      name = "Eosinophils";
-      value = parseFloat(raw.match(/[\d.]+/)[0]);
-      unit = REF_RANGES[name].unit;
-    } else if (/monocyte/i.test(raw)) {
-      name = "Monocytes";
-      value = parseFloat(raw.match(/[\d.]+/)[0]);
-      unit = REF_RANGES[name].unit;
-    } else if (/basophil/i.test(raw)) {
-      name = "Basophils";
-      value = parseFloat(raw.match(/[\d.]+/)[0]);
-      unit = REF_RANGES[name].unit;
-    }
+    const ref = REF_RANGES[nameCand];
+    const numMatch = seg.match(/(\d+(?:\.\d+)?)/);
+    if (!numMatch) continue;
 
-    if (!name || !value) continue;
+    let value = parseFloat(numMatch[1]);
+    value = cleanValue(nameCand, value);
 
-    const ref = REF_RANGES[name];
-    if (!status) {
+    let status = null;
+    if (/\(low\)/i.test(seg)) status = "low";
+    else if (/\(high\)/i.test(seg)) status = "high";
+    else if (/\(borderline\)/i.test(seg)) status = "borderline";
+    else {
       if (value < ref.low) status = "low";
       else if (value > ref.high) status = "high";
       else status = "normal";
     }
 
     results.push({
-      name,
+      name: nameCand,
       value,
-      unit,
+      unit: ref.unit,
       status,
       ref_range: { low: ref.low, high: ref.high }
     });
+    provenance.push({ raw: seg, name: nameCand });
   }
 
-  return {
-    tests: results,
-    normalization_confidence: results.length ? 0.85 : 0
-  };
+  const normalization_confidence = results.length ? 0.84 : 0.0;
+  return { tests: results, normalization_confidence, provenance };
 }
-
-export { normalizeTests };
