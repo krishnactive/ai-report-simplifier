@@ -4,6 +4,7 @@ import fs from "fs";
 import path from "path";
 import { ocrImageToText } from "./services/ocr.js";
 import { extractTestsRaw } from "./services/extract.js";
+import { normalizeTests } from "./services/normalize.js";
 
 const router = express.Router();
 const upload = multer({ dest: "uploads/" });
@@ -30,6 +31,20 @@ router.post("/extract", upload.single("file"), async (req, res) => {
     res.json({ tests_raw, confidence: Number(confidence.toFixed(2)) });
   } catch (err) {
     res.status(500).json({ error: "Extraction failed", details: err.message });
+  }
+});
+
+router.post("/normalize", (req, res) => {
+  try {
+    const { tests_raw } = req.body;
+    if (!Array.isArray(tests_raw) || !tests_raw.length) {
+      return res.status(400).json({ error: "tests_raw must be a non-empty array" });
+    }
+
+    const result = normalizeTests(tests_raw);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: "Normalization failed", details: err.message });
   }
 });
 
