@@ -16,9 +16,11 @@ It handles:
 ---
 
 ## Live Demo & Resources
+- 🎥 **Demo Video:** [Watch Here](https://drive.google.com/file/d/1yPC-ETRsoIkThO1eyH9ARmNqd3DH_UhK/view?usp=sharing)  
 - 🌍 **API (ngrok):** [API Link](https://stomatological-unadulteratedly-caitlin.ngrok-free.dev)  
 - 📬 **Postman Collection:** [Postman Workspace](https://web.postman.co/workspace/My-Workspace~2b5fcb37-27fd-424c-8ae9-765ffb36ce4b/collection/35993315-9d7b0d12-d686-45b3-9093-e08395f1bd20?action=share&source=copy-link&creator=35993315)  
-- 💻 **GitHub Repository:** [ai-report-simplifier](https://github.com/krishnactive/ai-report-simplifier)  
+- 💻 **GitHub Repository:** [ai-report-simplifier](https://github.com/krishnactive/ai-report-simplifier)
+
 
 ---
 
